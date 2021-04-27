@@ -1,0 +1,49 @@
+vim8 プラグインのインストール
+
+
+ネイティブのプラグイン管理方法
+----------------------
+
+Linux なら $HOME/.vim/pack/ の下
+Windows なら %USERPROFILE%\vimfiles\pack\ の下
+
+/pack/任意/opt/ は手動でロードしたいプラグインを配置
+/pack/任意/start/ は常にロードしたいプラグインを配置
+配置とは、例えばctrlpであれば
+/pack/任意/start/ctrlp.vim-master/以下複数ディレクトリ
+のようになる
+
+/opt/ に配置した場合は、
+:packadd プラグイン名
+を実行したタイミングでロードされる
+
+/start/ に配置した場合はvimrcの読み込み後に自動的にロードされる
+より早く読み込みを行いたい場合、vimrcに下記を追加する
+これで /start/ にあるすべてのプラグインがロードされる
+packloadall
+
+ドキュメントをロードするには、vimrcに下記が必要
+silent! helptags ALL
+
+
+
+
+vim-plug でのプラグイン管理
+---------------------------
+
+Linux なら $HOME/.vim/autoload/
+Windows なら %USERPROFILE%\vimfiles\autoload\
+に
+plug.vim
+を保存
+
+vimrc に下記の通り追記、beginとendが必要
+call plug#begin()
+"ここにプラグイン名を追加、名前はgithubのURLの最後の部分 user/repo の形式
+Plug 'ctrlpvim/ctrlp.vim'
+call plug#end()
+
+:PlugUpdate でインストールされている全てのプラグインのアップデート
+:PlugClean でvimrcから削除したプラグインをファイルシステムから削除
+
+
