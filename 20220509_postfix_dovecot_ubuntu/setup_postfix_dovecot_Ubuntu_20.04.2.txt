@@ -1,0 +1,239 @@
+検証用メールサーバのセットアップ手順
+
+
+IPv6無効化
+==========
+
+$ sudo cp -p /etc/sysctl.conf /etc/sysctl.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/sysctl.conf
+
+net.ipv6.conf.all.disable_ipv6=1
+net.ipv6.conf.default.disable_ipv6=1
+net.ipv6.conf.lo.disable_ipv6=1
+
+
+$ sudo vi /etc/rc.local
+
+#!/bin/bash
+
+/etc/init.d/procps restart
+
+exit 0
+
+$ sudo chmod 755 /etc/rc.local
+$ sudo reboot
+
+
+
+
+
+
+固定IP設定
+==========
+
+$ sudo mv /etc/netplan/00-installer-config.yaml /etc/netplan/00-installer-config.yaml.disabled
+$ sudo cp /etc/netplan/00-installer-config.yaml.disabled 99-netcfg.yaml
+$ sudo vi /etc/netplan/99-netcfg.yaml
+
+network:
+  ethernets:
+    eno1:
+      dhcp4: false
+      addresses: [10.10.10.1/18]
+      gateway4: 10.10.63.250
+      nameservers:
+        addresses: [10.10.10.101, 10.10.10.102, 10.10.10.103]
+  version: 2
+
+$ sudo netplan apply
+
+
+
+
+
+プロキシ設定
+============
+
+$ vi ~/.bashrc
+
+export https_proxy="http://somepxy20.somedomain.co.jp:8080/"
+export http_proxy="http://somepxy20.somedomain.co.jp:8080/"
+
+$ source ~/.bashrc
+
+
+
+$ sudo vi /etc/apt/apt.conf.d/30proxy
+
+Acquire::http { Proxy "http://somepxy20.somedomain.co.jp:8080/"; };
+Acquire::https { Proxy "http://somepxy20.somedomain.co.jp:8080/"; };
+
+$ sudo apt-get update
+
+
+
+インストール
+============
+
+$ sudo apt-get install -y postfix
+
+No configuration を選択
+
+$ sudo apt-get install -y dovecot-common dovecot-imapd dovecot-pop3d
+
+
+
+
+postfix 設定
+============
+
+$ sudo cp /etc/postfix/main.cf.proto /etc/postfix/main.cf
+$ sudo vi /etc/postfix/main.cf
+
+コメント削除
+ 78 mail_owner = postfix
+
+コメント削除して変更
+ 95 myhostname = somemxt99.somedomain.co.jp
+
+コメント削除して変更
+102 mydomain = mail.somedomain
+
+コメント削除
+123 myorigin = $mydomain
+
+コメント削除
+137 inet_interfaces = all
+
+コメント削除
+185 mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain
+
+コメント削除
+228 local_recipient_maps = unix:passwd.byname $alias_maps
+
+変更
+287 mynetworks = 127.0.0.0/8, 10.10.10.0/24
+
+コメント削除
+407 alias_maps = hash:/etc/aliases
+
+コメント削除
+418 alias_database = hash:/etc/aliases
+
+コメント削除
+440 home_mailbox = Maildir/
+
+変更
+576 smtpd_banner = $myhostname ESMTP
+
+変更
+650 sendmail_path = /usr/sbin/postfix
+
+変更
+655 newaliases_path = /usr/bin/newaliases
+
+変更
+660 mailq_path = /usr/bin/mailq
+
+変更
+666 setgid_group = postdrop
+
+コメント化
+670 #html_directory =
+
+コメント化
+674 #manpage_directory =
+
+コメント化
+679 #sample_directory =
+
+コメント化
+683 #readme_directory =
+
+
+追加
+relay_domains = mail.somedomain
+relayhost = [ycoeml12o.somedomain.co.jp]:25
+
+追加
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $myhostname
+smtpd_recipient_restrictions = permit_mynetworks,permit_auth_destination,permit_sasl_authenticated,reject
+
+
+
+$ sudo newaliases
+
+$ sudo systemctl restart postfix
+
+
+
+dovecot 設定
+============
+
+$ sudo cp /etc/dovecot/dovecot.conf /etc/dovecot/dovecot.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/dovecot/dovecot.conf
+
+コメント削除して変更
+30 listen = *
+
+
+$ sudo cp /etc/dovecot/conf.d/10-auth.conf /etc/dovecot/conf.d/10-auth.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/dovecot/conf.d/10-auth.conf
+
+コメント削除して変更
+ 10 disable_plaintext_auth = no
+
+変更
+100 auth_mechanisms = plain login
+
+
+
+$ sudo cp /etc/dovecot/conf.d/10-mail.conf /etc/dovecot/conf.d/10-mail.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/dovecot/conf.d/10-mail.conf
+
+変更
+ 30 mail_location = maildir:~/Maildir
+
+
+
+$ sudo cp /etc/dovecot/conf.d/10-master.conf /etc/dovecot/conf.d/10-master.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/dovecot/conf.d/10-master.conf
+
+コメント削除して変更
+107   unix_listener /var/spool/postfix/private/auth {
+108     mode = 0666
+109     user = postfix
+110     group = postfix
+111   }
+
+
+
+$ sudo cp /etc/dovecot/conf.d/10-ssl.conf /etc/dovecot/conf.d/10-ssl.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/dovecot/conf.d/10-ssl.conf
+
+変更
+  6 ssl = no
+
+コメント化する
+ 12 #ssl_cert = </etc/dovecot/private/dovecot.pem
+ 13 #ssl_key = </etc/dovecot/private/dovecot.key
+
+
+
+$ sudo systemctl start dovecot
+
+
+
+
+Firewall変更
+============
+
+
+$ sudo ufw allow smtp
+$ sudo ufw allow smtps
+$ sudo ufw allow imaps
+
