@@ -1,0 +1,194 @@
+MediaWikiのセットアップ手順
+
+
+IPv6無効化
+==========
+
+$ sudo cp -p /etc/sysctl.conf /etc/sysctl.conf_`date +%Y%m%d-%H%M%S`
+$ sudo vi /etc/sysctl.conf
+
+net.ipv6.conf.all.disable_ipv6=1
+net.ipv6.conf.default.disable_ipv6=1
+net.ipv6.conf.lo.disable_ipv6=1
+
+
+$ sudo vi /etc/rc.local
+
+#!/bin/bash
+
+/etc/init.d/procps restart
+
+exit 0
+
+$ sudo chmod 755 /etc/rc.local
+$ sudo reboot
+
+
+
+
+
+
+固定IP設定
+==========
+
+$ sudo mv /etc/netplan/00-installer-config.yaml /etc/netplan/00-installer-config.yaml.disabled
+$ sudo cp /etc/netplan/00-installer-config.yaml.disabled 99-netcfg.yaml
+$ sudo vi /etc/netplan/99-netcfg.yaml
+
+network:
+  ethernets:
+    eno1:
+      dhcp4: false
+      addresses: [10.10.10.1/18]
+      gateway4: 10.10.10.250
+      nameservers:
+        addresses: [10.10.10.101, 10.10.10.102, 10.10.10.103]
+  version: 2
+
+$ sudo netplan apply
+
+
+
+
+
+プロキシ設定
+============
+
+$ vi ~/.bashrc
+
+export https_proxy="http://serverpxy20.example.co.jp:8080/"
+export http_proxy="http://serverpxy20.example.co.jp:8080/"
+
+$ source ~/.bashrc
+
+
+
+$ sudo vi /etc/apt/apt.conf.d/30proxy
+
+Acquire::http { Proxy "http://serverpxy20.example.co.jp:8080/"; };
+Acquire::https { Proxy "http://serverpxy20.example.co.jp:8080/"; };
+
+$ sudo apt-get update
+
+
+
+Apache インストール
+===================
+
+$ sudo apt install -y apache2 apache2-utils
+$ sudo systemctl enable apache2
+$ sudo ufw allow http
+$ sudo chown www-data:www-data /var/www/html/ -R
+
+$ sudo vi /etc/apache2/conf-available/servername.conf
+
+ServerName serverwik99
+
+$ sudo a2enconf servername.conf
+$ sudo systemctl reload apache2
+
+
+
+MariaDB インストール
+====================
+
+$ sudo apt install -y mariadb-server mariadb-client
+$ sudo systemctl enable mariadb
+
+$ sudo mysql_secure_installation
+
+Enter current password for root (enter for none): is skip
+Set root password? [Y/n] y
+follows is all skip
+
+$ sudo mariadb -u root
+
+exit;
+
+
+
+PHP7.4 インストール
+===================
+
+$ sudo apt install -y php7.4 libapache2-mod-php7.4 php7.4-mysql php-common php7.4-cli php7.4-common php7.4-json php7.4-opcache php7.4-readline
+$ sudo a2enmod php7.4
+$ sudo systemctl restart apache2
+
+
+
+
+MediaWiki インストール
+======================
+
+$ wget https://releases.wikimedia.org/mediawiki/1.35/mediawiki-1.35.1.tar.gz
+
+$ sudo mkdir -p /var/www/
+$ sudo tar xvf mediawiki-1.35.1.tar.gz -C /var/www/
+$ sudo mv /var/www/mediawiki-1.35.1 /var/www/mediawiki
+
+$ sudo apt install -y php7.4-mbstring php7.4-xml php7.4-fpm php7.4-json php7.4-mysql php7.4-curl php7.4-intl php7.4-gd php7.4-mbstring texlive imagemagick
+$ sudo systemctl restart apache2
+
+$ sudo apt install -y composer
+
+$ cd /var/www/mediawiki/
+$ composer install --no-dev
+
+$ sudo chown www-data:www-data /var/www/mediawiki/ -R
+
+
+
+MediaWiki セットアップ
+======================
+
+$ sudo mysql -u root
+
+CREATE DATABASE mediawiki;
+GRANT ALL PRIVILEGES ON mediawiki.* TO 'someuser'@'localhost' IDENTIFIED BY 'someuser00';
+flush privileges;
+exit;
+
+$ sudo vi /etc/apache2/sites-available/mediawiki.conf
+
+<VirtualHost *:80>
+    ServerAdmin someuser@serverwik99.example.co.jp
+    DocumentRoot /var/www//mediawiki/
+    ServerName serverwik99.example.co.jp
+
+    <Directory /var/www/html/mediawiki/>
+        Options FollowSymLinks
+        AllowOverride All
+        Order allow,deny
+        allow from all
+    </Directory>
+
+    ErrorLog /var/log/apache2/mediawiki_error
+    CustomLog /var/log/apache2/mediawiki_access common
+</VirtualHost>
+
+
+$ sudo a2ensite mediawiki.conf
+$ sudo systemctl reload apache2
+
+
+
+
+
+MediaWiki 初期設定
+==================
+
+http://serverwik99.example.co.jp/
+
+- select language
+- select Database MariaDB
+- hostname is localhost
+- input mediawiki in database name
+- input someuser in database user
+- input wiki name
+
+download LocalSettings.php
+
+$ sudo vi /var/www/mediawiki/LocalSettings.php
+
+
+
