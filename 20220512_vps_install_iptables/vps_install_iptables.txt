@@ -1,0 +1,43 @@
+
+OSを再インストール CentOS7
+CentOS Linux release 7.9.2009 (Core)
+パケットフィルタを利用しない
+
+
+useradd SOMEONE
+passwd SOMEONE
+
+systemctl stop firewalld
+systemctl disable firewalld
+yum install -y iptables-services
+
+systemctl start iptables
+systemctl enable iptables
+
+vi /etc/sysconfig/iptables
+
+～～～～～～～～～～～
+*filter
+:INPUT DROP [3:120]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [462:35041]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -p tcp -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p udp -m udp --sport 53 -j ACCEPT
+-A INPUT -s 127.0.0.1/32 -p tcp -j ACCEPT
+-A INPUT -s ##.##.##.##/32 -p tcp -j ACCEPT <= 必要であれば
+-A INPUT -s ##.##.##.##/32 -p tcp -j ACCEPT <= 必要であれば
+-A INPUT -s ##.##.##.##/32 -p tcp -j ACCEPT <= 必要であれば
+COMMIT
+～～～～～～～～～～～
+
+systemctl restart iptables
+
+
+
+vi /etc/ssh/sshd_config
+～～～～～～～～～～～
+PermitRootLogin no
+Port #### <= change
+～～～～～～～～～～～
+reboot
